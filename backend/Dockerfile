@@ -8,10 +8,12 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && docker-php-ext-install pdo pdo_pgsql
 
-# Enable Apache rewrite module for Laravel routing
-RUN a2enmod rewrite
+# Enable Apache rewrite module and configure DocumentRoot
+RUN a2enmod rewrite \
+    && sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf \
+    && sed -i 's|/var/www/html|/var/www/html/public|g' /etc/apache2/sites-available/000-default.conf
 
-# Set working directory
+# Set working directory to Laravel root
 WORKDIR /var/www/html
 
 # Copy application code
@@ -28,7 +30,7 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 # Expose Apache port
 EXPOSE 80
 
-# Runtime commands: migrate first, then clear cache, then generate key if missing, then start Apache
+# Runtime commands: migrate first, then clear cache, generate key if missing, then start Apache
 CMD bash -c "\
     php artisan migrate --force && \
     php artisan config:clear && \
