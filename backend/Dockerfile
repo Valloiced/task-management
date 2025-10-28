@@ -14,24 +14,26 @@ RUN a2enmod rewrite
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy all files from backend folder to container
+# Copy application code
 COPY . .
 
-# Install composer
+# Install Composer
 RUN curl -sS https://getcomposer.org/installer | php
 RUN php composer.phar install --no-dev --optimize-autoloader
 
-# Set proper permissions for Laravel storage and bootstrap/cache
+# Set proper permissions for Laravel
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Expose port 80 for Apache
+# Expose Apache port
 EXPOSE 80
 
-# Run Laravel commands at runtime, after environment variables are available
-CMD php artisan config:clear \
-    && php artisan route:clear \
-    && php artisan cache:clear \
-    && php artisan key:generate \
-    && php artisan migrate --force \
-    && apache2-foreground
+# Runtime commands: migrate first, then clear cache, then generate key if missing, then start Apache
+CMD bash -c "\
+    php artisan migrate --force && \
+    php artisan config:clear && \
+    php artisan route:clear && \
+    php artisan cache:clear && \
+    if [ -z \"$(php artisan tinker --execute='echo env(\"APP_KEY\");')\" ]; then php artisan key:generate; fi && \
+    apache2-foreground \
+"
