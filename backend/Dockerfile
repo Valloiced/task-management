@@ -1,41 +1,37 @@
-# Use the official PHP image with Apache
+# Use official PHP 8.2 Apache image
 FROM php:8.2-apache
 
-# Enable Apache mod_rewrite
+# Install system dependencies and PostgreSQL PDO extension
+RUN apt-get update && apt-get install -y \
+    git \
+    unzip \
+    libpq-dev \
+    && docker-php-ext-install pdo pdo_pgsql
+
+# Enable Apache rewrite module for Laravel routing
 RUN a2enmod rewrite
 
 # Set working directory
 WORKDIR /var/www/html
 
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    zip unzip git curl libpng-dev libonig-dev libxml2-dev libzip-dev \
-    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
+# Copy all files from backend folder to container
+COPY . .
 
-# Copy composer
-COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
+# Install composer dependencies
+RUN curl -sS https://getcomposer.org/installer | php
+RUN php composer.phar install --no-dev --optimize-autoloader
 
-# Copy the Laravel application files
-COPY . /var/www/html
+# Clear and optimize Laravel caches
+RUN php artisan config:clear && php artisan route:clear && php artisan cache:clear
 
-# Install dependencies
-RUN composer install --no-dev --optimize-autoloader
+# Generate application key
+RUN php artisan key:generate
 
-# Set permissions
+# Set proper permissions for Laravel storage
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-# 🔧 FIX: Change Apache DocumentRoot to Laravel's /public
-RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|' /etc/apache2/sites-available/000-default.conf
-
-# Also add directory config
-RUN echo "<Directory /var/www/html/public>\n\
-    AllowOverride All\n\
-    Require all granted\n\
-</Directory>" > /etc/apache2/conf-available/laravel.conf \
-    && a2enconf laravel
-
-# Expose port 80
+# Expose port 80 for Apache
 EXPOSE 80
 
-# Start Apache
-CMD ["apache2-foreground"]
+# Run migrations and start Apache
+CMD php artisan migrate --force && apache2-foreground
