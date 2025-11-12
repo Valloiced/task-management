@@ -1,3 +1,5 @@
+/*Ritualo, Mark Niño A.*/
+
 import logo from './logo.svg';
 import './App.css';
 
